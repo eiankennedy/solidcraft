@@ -60,6 +60,8 @@ pub struct Environment {
     pub logo: bool,
     pub viewport: Option<bool>,
     pub background: Option<[u8; 3]>,
+    /// Workbench's look ([`set_workbench`]): 0 off, else the accent with the top bit set.
+    pub workbench: u32,
 }
 
 impl Environment {
@@ -72,6 +74,7 @@ impl Environment {
             logo: LOGO_ACCENT.get(),
             viewport: VIEWPORT_DARK.get(),
             background: viewport_background(),
+            workbench: WORKBENCH.load(std::sync::atomic::Ordering::Relaxed),
         }
     }
 
@@ -752,7 +755,29 @@ impl TabAccent {
 
 /// Is the dark theme on?
 pub fn is_dark() -> bool {
-    DARK.get()
+    DARK.get() || workbench().is_some()
+}
+
+/// Workbench's look (a host embedding SolidCraft): 0 when off, else `1 << 31` plus the accent's RGB.
+/// One for the process, so every thread and panel draws with it.
+static WORKBENCH: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// Workbench's own accent when none is given: the CAD mode's orange.
+pub const WORKBENCH_ACCENT: [u8; 3] = [0xff, 0x60, 0x00];
+
+/// Draw with Workbench's look (its near-black palette, square corners, `accent`), or the app's own
+/// themes (`on` false). Returns whether that changed anything (the visuals follow on the next [`apply`]).
+pub fn set_workbench(on: bool, accent: Option<[u8; 3]>) -> bool {
+    let [r, g, b] = accent.or_else(|| workbench().map(|c| [c.r(), c.g(), c.b()])).unwrap_or(WORKBENCH_ACCENT);
+    let value = if on { 1 << 31 | u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b) } else { 0 };
+    WORKBENCH.swap(value, std::sync::atomic::Ordering::Relaxed) != value
+}
+
+/// Workbench's accent while its look is on ([`set_workbench`]).
+pub fn workbench() -> Option<Color32> {
+    let v = WORKBENCH.load(std::sync::atomic::Ordering::Relaxed);
+    let [_, r, g, b] = v.to_be_bytes();
+    (v != 0).then(|| Color32::from_rgb(r, g, b))
 }
 
 /// Is the 3D view dark? As the window, unless Preferences give the view its own (#4146).
@@ -1509,10 +1534,82 @@ impl Tokens {
     /// The tokens of a theme and colour vision mode: a theme file's palette when one is on for
     /// that base ([`set_custom`]), else the built-in one; the colour vision mode on top.
     pub fn themed(dark: bool, mode: ColorVision) -> Tokens {
+        if let Some(accent) = workbench() {
+            return Tokens::dark().with_workbench(accent).with_vision(true, mode);
+        }
         let custom = CUSTOM.get().filter(|c| c.dark == dark).map(|c| c.tokens);
         let t = custom.unwrap_or(if dark { Tokens::dark() } else { Tokens::light() });
         let t = if LOGO_ACCENT.get() { t.with_accent_logo() } else { t };
         t.with_vision(dark, mode)
+    }
+
+    /// These tokens in Workbench's look: its near-black surfaces and hairlines, its text greys,
+    /// square corners and `accent` (the session mode's colour).
+    pub fn with_workbench(mut self, accent: Color32) -> Tokens {
+        let surface = Color32::from_rgb(0x12, 0x13, 0x16);
+        let raised = Color32::from_rgb(0x18, 0x19, 0x1c);
+        let sunk = Color32::from_rgb(0x06, 0x06, 0x07);
+        let hairline = Color32::from_rgb(0x33, 0x34, 0x36);
+        let text = Color32::from_rgb(0xf2, 0xf1, 0xee);
+        let dim = Color32::from_rgb(0x98, 0x99, 0x98);
+        let faint = Color32::from_rgb(0x83, 0x84, 0x85);
+        let soft = accent.lerp_to_gamma(surface, 0.7);
+        let hover = Color32::from_rgb(0x22, 0x23, 0x26);
+        let t = &mut self;
+        t.app_bar = surface;
+        t.app_bar_separator = hairline;
+        t.app_bar_text = text;
+        t.app_bar_hover = hover;
+        t.app_bar_hover_subtle = hover;
+        t.app_bar_hover_button = hover;
+        t.app_bar_hover_strong = hairline;
+        t.app_bar_tab_active = raised;
+        t.toolbar = surface;
+        t.panel = surface;
+        t.panel_header = raised;
+        t.border = hairline;
+        t.text = text;
+        t.text_dim = dim;
+        t.accent = accent;
+        t.accent_soft = soft;
+        t.hover = hover;
+        t.field = sunk;
+        t.chip = raised;
+        t.dialog_bg = surface;
+        t.dialog_border = hairline;
+        t.dialog_body = surface;
+        t.dialog_footer = raised;
+        t.dialog_rule = hairline;
+        t.dialog_label = text;
+        t.control_fill = sunk;
+        t.control_border = hairline;
+        t.selected_ink = text;
+        t.selected_bg = soft;
+        t.form_ink = text;
+        t.form_dim = faint;
+        t.form_primary = accent;
+        t.form_primary_fill = accent;
+        t.pref_well = raised;
+        t.nav_hover = hover;
+        t.nav_press = hairline;
+        t.nav_dim = faint;
+        t.nav_viewport = surface;
+        t.nav_field = raised;
+        t.file_background = surface;
+        t.file_surface = raised;
+        t.file_border = hairline;
+        t.file_dim = dim;
+        t.file_primary_border = accent;
+        t.viewport_top = surface;
+        t.viewport_bottom = sunk;
+        t.timeline_marker = accent;
+        t.radius_sm = 0;
+        t.radius_md = 0;
+        t.radius_lg = 0;
+        t.radius_xl = 0;
+        t.control_radius = 0;
+        t.sketch_mode_radius = 0;
+        self
     }
 
     /// These tokens with the logo's three faces in shades of the accent: lighter, the accent

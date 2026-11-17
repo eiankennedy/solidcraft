@@ -195,7 +195,7 @@ fn slot_views(app: &SolveApp, bar: &BarLayout, editing: Option<(NavCaps, bool)>)
 }
 
 pub(crate) fn show(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect) {
-    if !app.ui.show_navigation_bar {
+    if !app.ui.show_navigation_bar || app.ui.hands_off {
         return;
     }
     let Some(layout) = app.viewport.layout.as_ref().filter(|l| l.navigation.is_positive()) else { return };

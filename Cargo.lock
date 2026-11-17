@@ -1329,6 +1329,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-embed"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "egui",
+ "egui-wgpu",
+ "log",
+ "png",
+ "pollster 0.4.0",
+ "raw-window-handle",
+ "wgpu",
+]
+
+[[package]]
 name = "craft-plugin"
 version = "0.44.0"
 dependencies = [
@@ -6040,6 +6054,19 @@ dependencies = [
  "solidcore-record",
  "solidcraft-geom",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "solidcraft-embed"
+version = "0.44.0"
+dependencies = [
+ "craft-embed",
+ "serde_json",
+ "solidcraft-control",
+ "solidcraft-engine",
+ "solidcraft-look",
+ "solidcraft-theme",
+ "solidcraft-ui-egui",
 ]
 
 [[package]]

@@ -1455,6 +1455,17 @@ impl crate::SolveApp {
         }
         // Chrome paints and receives input above the full-domain scene. Its
         // measured rectangles affect usable space, never the camera projection.
+        // Hands off: the 3D view alone, no chrome around it.
+        if !self.ui.hands_off {
+            self.workspace_chrome(ui, prepared);
+        }
+        if self.panel_runtime.as_ref().is_some_and(|integration| integration.production.is_some()) && !self.preferences.agent_chat_popped {
+            crate::agent_chat::finish_shared(self, ui.ctx());
+        }
+    }
+
+    /// The chrome around the 3D view: status bar, ribbon and the docked panels.
+    fn workspace_chrome(&mut self, ui: &mut egui::Ui, prepared: bool) {
         crate::status_bar::show(self, ui);
         if !self.embedded {
             crate::toolbar::toolbar(self, ui);
@@ -1479,8 +1490,5 @@ impl crate::SolveApp {
                     self.panel_runtime = Some(integration);
                 }
             });
-        if self.panel_runtime.as_ref().is_some_and(|integration| integration.production.is_some()) && !self.preferences.agent_chat_popped {
-            crate::agent_chat::finish_shared(self, ui.ctx());
-        }
     }
 }

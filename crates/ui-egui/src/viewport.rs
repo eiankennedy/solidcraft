@@ -7212,6 +7212,10 @@ fn quick_measure_readout(app: &mut SolveApp, ui: &egui::Ui, viewport: Rect) -> O
 /// A single visual pattern for ongoing work, the existing six-second status, the 3D mouse
 /// calibration offer and the stand-up note, stacked from the bottom of the free view. Returns the toasts' rects.
 pub(crate) fn transient_messages(app: &mut SolveApp, ui: &egui::Ui, viewport: Rect, readout: Option<Rect>) -> Vec<Rect> {
+    // Hands off: the host reports what happened; the view shows only the design.
+    if app.ui.hands_off {
+        return Vec::new();
+    }
     let placement_hint =
         app.tool.as_ref().filter(|tool| matches!(tool.cmd, "canvas.insert" | "canvas.decal")).map(|tool| crate::tools::hint(tool.cmd));
     // The operations panel shows the work computing, with its Cancel, instead of the computing
@@ -8625,7 +8629,11 @@ pub(crate) fn refresh_layout(app: &mut SolveApp, ctx: &egui::Context) {
                 });
                 return;
             };
-            let navigation = if app.ui.show_navigation_bar { crate::navigation_bar_view::measured(app, ctx, rect).rect } else { Rect::NOTHING };
+            let navigation = if app.ui.show_navigation_bar && !app.ui.hands_off {
+                crate::navigation_bar_view::measured(app, ctx, rect).rect
+            } else {
+                Rect::NOTHING
+            };
             let orbit = crate::navigation_bar_view::canvas_caps(app).orbit;
             app.viewport.layout = Some(if let Some(confirm) = app.viewport.host_confirm {
                 crate::viewport_layout::Layout::host_with_retained_confirm(rect, &usable, crate::view_gizmo::style(app), confirm, navigation, orbit)
@@ -8643,7 +8651,8 @@ pub(crate) fn refresh_layout(app: &mut SolveApp, ctx: &egui::Context) {
             });
             return;
         }
-        let navigation = if app.ui.show_navigation_bar { crate::navigation_bar_view::measured(app, ctx, rect).rect } else { Rect::NOTHING };
+        let navigation =
+            if app.ui.show_navigation_bar && !app.ui.hands_off { crate::navigation_bar_view::measured(app, ctx, rect).rect } else { Rect::NOTHING };
         app.viewport.layout = Some(crate::viewport_layout::Layout::with_content(
             rect,
             rect,

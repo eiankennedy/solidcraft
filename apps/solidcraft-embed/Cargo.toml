@@ -1,0 +1,32 @@
+[package]
+name = "solidcraft-embed"
+description = "SolidCraft as a library Workbench hosts natively in its side panel (craft-embed)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+# The workspace lints, except unsafe_code: denied, not forbidden, because craft-embed's
+# `export_embed!` expands to the C functions the host calls. Keep the rest in sync with
+# [workspace.lints].
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+too_many_arguments = "allow"
+type_complexity = "allow"
+neg_cmp_op_on_partial_ord = "allow"
+
+[dependencies]
+solidcraft-engine = { workspace = true }
+solidcraft-control = { workspace = true }
+solidcraft-ui-egui = { workspace = true }
+solidcraft-look = { workspace = true }
+solidcraft-theme = { workspace = true }
+serde_json = { workspace = true }
+craft-embed = { path = "../../../../crates/craft-embed" }

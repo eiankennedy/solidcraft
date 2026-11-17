@@ -408,6 +408,10 @@ pub struct UiState {
     /// Last contextual body/sketch, only used to select on entry.
     #[serde(skip)]
     pub ribbon_context: Option<String>,
+    /// Hands off (a host such as Workbench drawing SolidCraft while an agent works): only the 3D
+    /// view is drawn, without the application bar, ribbon, panels or status bar. Not saved.
+    #[serde(skip)]
+    pub hands_off: bool,
     pub show_browser: bool,
     pub show_timeline: bool,
     pub show_grid: bool,
@@ -472,6 +476,7 @@ impl Default for UiState {
             ribbon_context: None,
             sketch_return_tab: None,
             ribbon_open: false,
+            hands_off: false,
             show_browser: true,
             show_timeline: true,
             show_grid: true,
@@ -3915,14 +3920,36 @@ impl SolveApp {
     /// once they change.
     fn apply_look(&mut self, ctx: &egui::Context) {
         // The view's own dark or light only changes tokens, not egui's visuals: no restyle.
-        solidcraft_theme::set_viewport_dark(self.preferences.viewport_theme.dark());
-        solidcraft_theme::set_viewport_background(self.preferences.viewport_background);
-        if !self.styled || solidcraft_theme::is_dark() != self.ui.dark || solidcraft_theme::vision() != self.preferences.color_vision {
+        // Workbench's look draws its own view background.
+        let workbench = solidcraft_theme::workbench().is_some();
+        solidcraft_theme::set_viewport_dark(if workbench { None } else { self.preferences.viewport_theme.dark() });
+        solidcraft_theme::set_viewport_background(if workbench { None } else { self.preferences.viewport_background });
+        let dark = self.ui.dark || workbench;
+        if !self.styled || solidcraft_theme::is_dark() != dark || solidcraft_theme::vision() != self.preferences.color_vision {
             solidcraft_theme::set_dark(self.ui.dark);
             solidcraft_theme::set_vision(self.preferences.color_vision);
             solidcraft_theme::apply(ctx);
             self.styled = true;
         }
+    }
+
+    /// Workbench's look (`view.workbench`): its palette, square corners and `accent` (`#rrggbb`, the
+    /// session mode's colour) for the whole window, or the app's own theme again.
+    pub fn set_workbench(&mut self, on: bool, accent: Option<&str>) {
+        let accent = accent.and_then(|a| u32::from_str_radix(a.trim_start_matches('#'), 16).ok().filter(|_| a.trim_start_matches('#').len() == 6));
+        let rgb = accent.map(|n| {
+            let [_, r, g, b] = n.to_be_bytes();
+            [r, g, b]
+        });
+        if solidcraft_theme::set_workbench(on, rgb) {
+            self.styled = false;
+        }
+    }
+
+    /// Hands off (`view.handsOff`): only the 3D view, or the whole window again.
+    pub fn set_hands_off(&mut self, on: bool) {
+        self.ui.hands_off = on;
+        self.ui.ribbon_open = false;
     }
 
     /// The preferences that set how the window looks (zoom, theme, colour vision), for the
@@ -4000,7 +4027,7 @@ impl SolveApp {
         self.poll_deferred(ui.ctx());
         self.poll_delete_check(ui.ctx());
         timeline::tick_playback(self, ui.ctx());
-        if !self.embedded && !self.embed_editor {
+        if !self.embedded && !self.embed_editor && !self.ui.hands_off {
             toolbar::app_bar(self, ui);
         }
         issue_report::CadInput::block(self, ui, report_input);
